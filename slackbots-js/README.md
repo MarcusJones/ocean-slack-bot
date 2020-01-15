@@ -1,0 +1,6 @@
+## Secrets
+.env file:
+```
+SLACK_BOT_USER_OAUTH_TOKEN=xoxb-...
+NGROK_AUTH_TOKEN=...
+```

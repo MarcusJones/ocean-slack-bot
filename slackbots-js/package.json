@@ -12,6 +12,11 @@
   "dependencies": {
     "axios": "^0.19.1",
     "dotenv": "^8.2.0",
+    "slack-node": "^0.1.8",
     "slackbots": "^1.2.0"
+  },
+  "devDependencies": {
+    "ngrok": "^3.2.7",
+    "nodemon": "^2.0.2"
   }
 }
