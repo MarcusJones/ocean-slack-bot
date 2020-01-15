@@ -30,7 +30,6 @@ app.post('/', (req, res) => {
 app.post('/list', (req, res) => {
     console.log("/list")
 
-
     var options = {
         method: 'GET',
         url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/info',
