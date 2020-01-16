@@ -4,6 +4,7 @@ const dotenv = require('dotenv')
 const request = require("request");
 const bodyParser = require('body-parser');
 var zlib = require('zlib');
+const assert = require('assert');
 
 
 dotenv.config()
@@ -12,9 +13,19 @@ let channelName = 'v2-compute'
 
 const bot = new SlackBot({
     token: `${process.env.SLACK_BOT_USER_OAUTH_TOKEN}`,
-    name: 'inspirenuggets'
+    name: 'Simple V2 Compute Bot'
 })
-
+let helpMessage = `Simple Compute To Data wrapper bot. Write @SimpleV2 COMMAND, where COMMAND is one of:
+    \`list\` - List all jobIds
+    \`status JOB_ID\` - Status code and message for a single job
+    \`myjobs OWNER_ID\` - Status for all jobs owned by OWNER_ID (Eth public address)
+    \`logs JOB_ID\` - All URLs for logs
+    \`asset\` JOB_ID - Get the published asset URL in the Commons Marketplace
+    WIP:
+        \`info JOB_ID\` - Not implemented
+        \`help\` - Not implemented!
+        ~\`info\`~
+`
 bot.on('start', () => {
     console.log('STARTED BOT');
 
@@ -24,7 +35,7 @@ bot.on('start', () => {
 
     bot.postMessageToChannel(
         channelName,
-        'Simple Compute To Data wrapper bot. Write @SimpleV2 COMMAND, where COMMAND is one of: list, info, info EXEC_ID, help',
+        helpMessage,
         params
     );
 })
@@ -41,6 +52,10 @@ let regexHelp = /^<.+>\shelp$/
 let regexList = /^<.+>\slist$/
 let regexInfo = /^<.+>\sinfo$/
 let regexInfoID = /^<.+>\sinfo\s[A-Fa-f0-9]{32}$/
+let regexAssetID = /^<.+>\sasset\s[A-Fa-f0-9]{32}$/
+let regexStatusID = /^<.+>\sstatus\s[A-Fa-f0-9]{32}$/
+let regexMyJobs = /^<.+>\smyjobs\s[A-Fa-f0-9]+$/
+let regexLogsID = /^<.+>\slogs\s[A-Fa-f0-9]{32}$/
 
 function handleMessage(message) {
     if (message.includes(' test1')) {
@@ -55,6 +70,22 @@ function handleMessage(message) {
         let thisExecId = message.split(/\s+/).slice(-1)[0]
         // console.log(message.split(/\s+/)[-1])
         runInfoID(thisExecId)
+    } else if (message.match(regexAssetID)) {
+        let thisExecId = message.split(/\s+/).slice(-1)[0]
+        // console.log(message.split(/\s+/)[-1])
+        runAssetID(thisExecId)
+    } else if (message.match(regexStatusID)) {
+        let thisJobId = message.split(/\s+/).slice(-1)[0]
+        // console.log(message.split(/\s+/)[-1])
+        runStatusID(thisJobId)
+    } else if (message.match(regexMyJobs)) {
+        let thisOwner = message.split(/\s+/).slice(-1)[0]
+        // console.log(message.split(/\s+/)[-1])
+        runMyJobs(thisOwner)
+    } else if (message.match(regexLogsID)) {
+        let thisJobId = message.split(/\s+/).slice(-1)[0]
+        // console.log(message.split(/\s+/)[-1])
+        runLogsID(thisJobId)
     } else if (message.match(regexList)) {
         runList()
     } else {
@@ -68,8 +99,230 @@ bot.on('error', (err) => {
     console.log(err);
 })
 
+
+
+
+function runAssetID(thisJobId) {
+    console.log(`/asset ${thisJobId}`)
+
+    var options = {
+        method: 'GET',
+        url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/compute',
+        qs: { jobId: thisJobId },
+        // qs: {'executionId': '8f8650e89f85485c8d73c56834b0066c'},
+        gzip: true,
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'operator-api.operator.dev-ocean.com',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        // console.log(response);
+
+        let thisInfo = JSON.parse(response.body)
+        // let thisInfo = response.body
+        console.log(thisInfo)
+        if (!(thisInfo.length === 1)) {
+            throw new Error();
+        }
+
+        thisStatusObj = thisInfo[0]
+        console.log(thisStatusObj)
+
+        let statusMsg = `Your asset from job *${thisStatusObj.jobId}* is at https://commons.nile.dev-ocean.com/asset/${thisStatusObj.did}`
+
+        bot.postMessageToChannel(
+            channelName,
+            statusMsg
+            // body,
+            // `:zap: ${quote} - *${author}*`,
+            // params
+        );
+    });
+}
+
+
+
+function runMyJobs(thisOwner) {
+    console.log(`/myjobs ${thisOwner}`)
+
+    var options = {
+        method: 'GET',
+        url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/compute',
+        qs: { owner: `0x${thisOwner}` },
+        // qs: {'executionId': '8f8650e89f85485c8d73c56834b0066c'},
+        gzip: true,
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'operator-api.operator.dev-ocean.com',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        // console.log(response);
+
+        let thisInfo = JSON.parse(response.body)
+        // let thisInfo = response.body
+        console.log(thisInfo)
+
+        let numJobs = thisInfo.length
+
+        let statusLines = []
+        thisInfo.forEach(function(thisStatusObj) {
+            statusLines.push(`\`*${thisStatusObj.jobId}* | Status: ${thisStatusObj.status} ${thisStatusObj.statusText}\``)
+        })
+
+        statusParagraph = statusLines.join('\n')
+
+        let statusMsg = `Owner *${thisOwner}* has *${numJobs}* jobs:\n` + statusParagraph
+
+        bot.postMessageToChannel(
+            channelName,
+            statusMsg
+            // body,
+            // `:zap: ${quote} - *${author}*`,
+            // params
+        );
+    });
+}
+
+
+
+
+
+function runLogsID(thisJobId) {
+    console.log(`/logs ${thisJobId}`)
+
+    var options = {
+        method: 'GET',
+        url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/compute',
+        qs: { jobId: thisJobId },
+        // qs: {'executionId': '8f8650e89f85485c8d73c56834b0066c'},
+        gzip: true,
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'operator-api.operator.dev-ocean.com',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        // console.log(response);
+
+        let thisInfo = JSON.parse(response.body)
+        // let thisInfo = response.body
+        // console.log(thisInfo)
+        if (!(thisInfo.length === 1)) {
+            throw new Error();
+        }
+
+        thisStatusObj = thisInfo[0]
+        console.log(thisStatusObj)
+
+
+        let statusMsg = `Logs for job *${thisStatusObj.jobId}*:
+        Configuration logs: ${thisStatusObj.configlogURL}
+        Algorithm logs: ${thisStatusObj.algoLogURL}
+        Publishing logs: ${thisStatusObj.publishlogURL}
+        `
+
+
+        bot.postMessageToChannel(
+            channelName,
+            statusMsg
+            // body,
+            // `:zap: ${quote} - *${author}*`,
+            // params
+        );
+    });
+}
+
+
+
+function runStatusID(thisJobId) {
+    console.log(`/info ${thisJobId}`)
+    console.log(typeof(thisJobId));
+
+    var options = {
+        method: 'GET',
+        url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/compute',
+        qs: { jobId: thisJobId },
+        // qs: {'executionId': '8f8650e89f85485c8d73c56834b0066c'},
+        gzip: true,
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'operator-api.operator.dev-ocean.com',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        // console.log(response);
+
+        let thisInfo = JSON.parse(response.body)
+        // let thisInfo = response.body
+        console.log(thisInfo)
+        if (!(thisInfo.length === 1)) {
+            throw new Error();
+        }
+
+        thisStatusObj = thisInfo[0]
+        console.log(thisStatusObj)
+
+
+        let statusMsg = `Status for job *${thisStatusObj.jobId}*:
+        Status code: ${thisStatusObj.status}
+        Status message: ${thisStatusObj.statusText}
+        `
+
+
+        bot.postMessageToChannel(
+            channelName,
+            statusMsg
+            // body,
+            // `:zap: ${quote} - *${author}*`,
+            // params
+        );
+    });
+}
+
+
+
 function runInfoID(execID) {
     console.log(`/info ${execID}`)
+    console.log(typeof(execID));
+
     var options = {
         method: 'GET',
         url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/info',
@@ -82,7 +335,6 @@ function runInfoID(execID) {
             Connection: 'keep-alive',
             'Accept-Encoding': 'gzip, deflate',
             Host: 'operator-api.operator.dev-ocean.com',
-            'Postman-Token': '65f86604-f3e3-4d9a-a692-2b3cef83532f,197475b5-5504-4b1c-9502-b1c479581f9f',
             'Cache-Control': 'no-cache',
             Accept: '*/*',
             'User-Agent': 'PostmanRuntime/7.20.1'
@@ -91,6 +343,9 @@ function runInfoID(execID) {
 
     request(options, function (error, response, body) {
         if (error) throw new Error(error);
+        console.log('THIS REQUEST:');
+
+        console.log(response);
 
         // let thisInfo = JSON.parse(response.body)
         let thisInfo = response.body
@@ -224,23 +479,23 @@ function runInfo() {
 
 }
 
-function testFunc1() {
-    axios.get('https://raw.githubusercontent.com/BolajiAyodeji/inspireNuggets/master/src/quotes.json')
-        .then(res => {
-            const quotes = res.data;
-            const random = Math.floor(Math.random() * quotes.length);
-            const quote = quotes[random].quote
-            const author = quotes[random].author
+// function testFunc1() {
+//     axios.get('https://raw.githubusercontent.com/BolajiAyodeji/inspireNuggets/master/src/quotes.json')
+//         .then(res => {
+//             const quotes = res.data;
+//             const random = Math.floor(Math.random() * quotes.length);
+//             const quote = quotes[random].quote
+//             const author = quotes[random].author
 
-            const params = {
-                icon_emoji: ':male-technologist:'
-            }
+//             const params = {
+//                 icon_emoji: ':male-technologist:'
+//             }
 
-            bot.postMessageToChannel(
-                channelName,
-                `:zap: ${quote} - *${author}*`,
-                params
-            );
+//             bot.postMessageToChannel(
+//                 channelName,
+//                 `:zap: ${quote} - *${author}*`,
+//                 params
+//             );
 
-        })
-}
+//         })
+// }
