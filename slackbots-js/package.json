@@ -12,6 +12,7 @@
   "dependencies": {
     "axios": "^0.19.1",
     "dotenv": "^8.2.0",
+    "request-debug": "^0.2.0",
     "slack-node": "^0.1.8",
     "slackbots": "^1.2.0"
   },
