@@ -16,6 +16,7 @@ const bot = new SlackBot({
     name: 'Simple V2 Compute Bot'
 })
 let helpMessage = `Simple Compute To Data wrapper bot. Write @SimpleV2 COMMAND, where COMMAND is one of:
+    \`network status\` - Get the status of the main components (Currently set to Nile)
     \`list\` - List all jobIds
     \`status JOB_ID\` - Status code and message for a single job
     \`myjobs OWNER_ID\` - Status for all jobs owned by OWNER_ID (Eth public address)
@@ -56,12 +57,15 @@ let regexAssetID = /^<.+>\sasset\s[A-Fa-f0-9]{32}$/
 let regexStatusID = /^<.+>\sstatus\s[A-Fa-f0-9]{32}$/
 let regexMyJobs = /^<.+>\smyjobs\s[A-Fa-f0-9]+$/
 let regexLogsID = /^<.+>\slogs\s[A-Fa-f0-9]{32}$/
+let regexNetworkStats = /^<.+>\snetwork\sstatus/
 
 function handleMessage(message) {
     if (message.includes(' test1')) {
         testFunc1()
     } else if (message.includes(' test2')) {
         randomJoke()
+    } else if (message.match(regexNetworkStats)) {
+        runNetworkStats()
     } else if (message.match(regexHelp)) {
         runHelp()
         // } else if (message.includes('list')) {
@@ -100,7 +104,139 @@ bot.on('error', (err) => {
 })
 
 
+function runNetworkStats() {
+    console.log(`/network status`)
 
+    bot.postMessageToChannel(
+        channelName,
+        ":squid: Collecting status for the Nile network..."
+    )
+    // AQUARIUS **************
+    var options = {
+        method: 'GET',
+        url: 'https://agent.nile.dev-ocean.com:443/api/network/aquarius/status',
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'agent.nile.dev-ocean.com:443',
+            'Postman-Token': 'd99f0b90-7f53-4503-9fad-02199db3e2a1,34c59ed8-b755-4ad2-b8e5-fffb8b755ca8',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        let thisInfo = JSON.parse(response.body)
+        console.log(thisInfo)
+
+        let thisMsgLines = []
+        thisMsgLines.push('*Aquarius* :dolphin:')
+        for (var attr in thisInfo) {
+            thisMsgLines.push(`_${attr}_: ${thisInfo[attr]}`);
+        }
+        thisMsg = thisMsgLines.join('\n')
+
+        bot.postMessageToChannel(
+            channelName,
+            thisMsg
+        )
+    });
+
+    // BRIZO **************
+
+    var options = {
+        method: 'GET',
+        url: 'https://agent.nile.dev-ocean.com:443/api/network/brizo/status',
+        gzip: true,
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'agent.nile.dev-ocean.com:443',
+            'Postman-Token': 'f796dd15-c933-4604-bb21-811b9f9ffe71,75e119fd-67e4-405e-b521-ba27786e1f85',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        let thisInfo = JSON.parse(response.body)
+        console.log(thisInfo)
+
+        let thisMsgLines = []
+        thisMsgLines.push('*Brizo* :blowfish:')
+        for (var attr in thisInfo) {
+            if (attr != 'contracts') {
+                thisMsgLines.push(`_${attr}_: ${thisInfo[attr]}`);
+            }
+        }
+        thisMsg = thisMsgLines.join('\n')
+
+        bot.postMessageToChannel(
+            channelName,
+            thisMsg
+        )
+
+        thisMsgLines = []
+        thisMsgLines.push('*Brizo Contracts* :shark:')
+        for (var attr in thisInfo.contracts) {
+            thisMsgLines.push(`_${attr}_: ${thisInfo.contracts[attr]}`);
+
+        }
+        thisMsg = thisMsgLines.join('\n')
+
+        bot.postMessageToChannel(
+            channelName,
+            thisMsg
+        )
+    });
+
+    // GAS **************
+    var options = {
+        method: 'GET',
+        url: 'https://agent.nile.dev-ocean.com:443/api/network/gas/status',
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'agent.nile.dev-ocean.com:443',
+            'Postman-Token': 'd99f0b90-7f53-4503-9fad-02199db3e2a1,34c59ed8-b755-4ad2-b8e5-fffb8b755ca8',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1'
+        }
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        let thisInfo = JSON.parse(response.body)
+        console.log(thisInfo)
+
+        let thisMsgLines = []
+        thisMsgLines.push('*Gas* :fire:')
+        for (var attr in thisInfo) {
+            thisMsgLines.push(`_${attr}_: ${thisInfo[attr]}`);
+        }
+        thisMsg = thisMsgLines.join('\n')
+
+        bot.postMessageToChannel(
+            channelName,
+            thisMsg
+        )
+    });
+
+}
 
 function runAssetID(thisJobId) {
     console.log(`/asset ${thisJobId}`)
@@ -185,7 +321,7 @@ function runMyJobs(thisOwner) {
         let numJobs = thisInfo.length
 
         let statusLines = []
-        thisInfo.forEach(function(thisStatusObj) {
+        thisInfo.forEach(function (thisStatusObj) {
             statusLines.push(`\`*${thisStatusObj.jobId}* | Status: ${thisStatusObj.status} ${thisStatusObj.statusText}\``)
         })
 
@@ -202,10 +338,6 @@ function runMyJobs(thisOwner) {
         );
     });
 }
-
-
-
-
 
 function runLogsID(thisJobId) {
     console.log(`/logs ${thisJobId}`)
@@ -243,13 +375,11 @@ function runLogsID(thisJobId) {
         thisStatusObj = thisInfo[0]
         console.log(thisStatusObj)
 
-
         let statusMsg = `Logs for job *${thisStatusObj.jobId}*:
         Configuration logs: ${thisStatusObj.configlogURL}
         Algorithm logs: ${thisStatusObj.algoLogURL}
         Publishing logs: ${thisStatusObj.publishlogURL}
         `
-
 
         bot.postMessageToChannel(
             channelName,
@@ -265,7 +395,7 @@ function runLogsID(thisJobId) {
 
 function runStatusID(thisJobId) {
     console.log(`/info ${thisJobId}`)
-    console.log(typeof(thisJobId));
+    console.log(typeof (thisJobId));
 
     var options = {
         method: 'GET',
@@ -321,7 +451,7 @@ function runStatusID(thisJobId) {
 
 function runInfoID(execID) {
     console.log(`/info ${execID}`)
-    console.log(typeof(execID));
+    console.log(typeof (execID));
 
     var options = {
         method: 'GET',
