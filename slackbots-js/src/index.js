@@ -5,6 +5,7 @@ const request = require("request");
 const bodyParser = require('body-parser');
 var zlib = require('zlib');
 const assert = require('assert');
+require('request-debug')(request);
 
 
 dotenv.config()
@@ -22,9 +23,11 @@ let helpMessage = `Simple Compute To Data wrapper bot. Write @SimpleV2 COMMAND, 
     \`myjobs OWNER_ID\` - Status for all jobs owned by OWNER_ID (Eth public address)
     \`logs JOB_ID\` - All URLs for logs
     \`asset\` JOB_ID - Get the published asset URL in the Commons Marketplace
+    \`compute nodejs\` \`{algorithm}\` - Start a new compute job with the given nodejs script as a code block
     WIP:
         \`info JOB_ID\` - Not implemented
         \`help\` - Not implemented!
+        \`compute python\` \`{algorithm}\` - Start a new compute job with the given python script
         ~\`info\`~
 `
 bot.on('start', () => {
@@ -40,6 +43,56 @@ bot.on('start', () => {
         params
     );
 })
+
+
+nodejsWorkflowSpec = {
+    workflow:
+    {
+        agreementId: '111',
+        owner: '',
+        stages:
+            [{
+                index: 0,
+                input:
+                    [{
+                        id: 'did:op:87bdaabb33354d2eb014af5091c604fb4b0f67dc6cca4d18a96547bffdc27bcf',
+                        url:
+                            ['https://data.ok.gov/sites/default/files/unspsc%20codes_3.csv',
+                                'https://gishubdata.nd.gov/sites/default/files/NDHUB.Roads_MileMarkers_1.csv'],
+                        index: 0
+                    },
+                    {
+                        id: 'did:op:1384941e6f0b46299b6e515723df3d8e8e5d1fb175554467a1cb7bc613f5c72e',
+                        url: ['https://data.ct.gov/api/views/2fi9-sgi3/rows.csv?accessType=DOWNLOAD'],
+                        index: 1
+                    }],
+                compute: { Instances: 1, namespace: 'withgpu', maxtime: 3600 },
+                algorithm:
+                {
+                    id: 'did:op:87bdaabb33354d2eb014af5091c604fb4b0f67dc6cca4d18a96547bffdc27bcf',
+                    url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+                    rawcode: 'console.log(\'this is a test\')',
+                    container: { image: 'node', tag: '10', entrypoint: 'node $ALGO' }
+                },
+                output:
+                {
+                    nodeUri: 'https://nile.dev-ocean.com',
+                    brizoUrl: 'https://brizo.marketplace.dev-ocean.com',
+                    brizoAddress: '0x4aaab179035dc57b35e2ce066919048686f82972',
+                    metadata: { name: 'Workflow output' },
+                    metadataUrl: 'https://aquarius.marketplace.dev-ocean.com',
+                    secretStoreUrl: 'https://secret-store.nile.dev-ocean.com',
+                    whitelist:
+                        ['0x00Bd138aBD70e2F00903268F3Db08f2D25677C9e',
+                            '0xACBd138aBD70e2F00903268F3Db08f2D25677C9e'],
+                    owner: '0x200',
+                    publishoutput: true,
+                    publishalgolog: true
+                }
+            }]
+    }
+}
+
 
 // Message Handler
 bot.on('message', (data) => {
@@ -58,6 +111,8 @@ let regexStatusID = /^<.+>\sstatus\s[A-Fa-f0-9]{32}$/
 let regexMyJobs = /^<.+>\smyjobs\s[A-Fa-f0-9]+$/
 let regexLogsID = /^<.+>\slogs\s[A-Fa-f0-9]{32}$/
 let regexNetworkStats = /^<.+>\snetwork\sstatus/
+let regexComputeNodejs = /^<.+>\scompute nodejs\n```[\s\S]*```/
+let regexComputeTEST = /^<.+>\scompute nodejs TEST$/
 
 function handleMessage(message) {
     if (message.includes(' test1')) {
@@ -66,10 +121,20 @@ function handleMessage(message) {
         randomJoke()
     } else if (message.match(regexNetworkStats)) {
         runNetworkStats()
+    } else if (message.match(regexComputeTEST)) {
+        runComputeTest()
+        // } else if (message.includes('list')) {
+        //     runList()
     } else if (message.match(regexHelp)) {
         runHelp()
         // } else if (message.includes('list')) {
         //     runList()
+    } else if (message.match(regexComputeNodejs)) {
+        let thisAlgo = message.split(/nodejs/).slice(-1)[0]
+
+        thisAlgo = thisAlgo.replace(/```/g, '')
+        // console.log(message.split(/\s+/)[-1])
+        runComputeNodejs(thisAlgo)
     } else if (message.match(regexInfoID)) {
         let thisExecId = message.split(/\s+/).slice(-1)[0]
         // console.log(message.split(/\s+/)[-1])
@@ -102,6 +167,126 @@ function handleMessage(message) {
 bot.on('error', (err) => {
     console.log(err);
 })
+
+
+
+
+function runComputeTest() {
+    console.log(`/compute TESTING! `)
+
+    var options = { method: 'POST',
+    url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/compute',
+    headers:
+     { 'Postman-Token': 'a0a24df1-5f7c-4b86-8ee5-0ace878b853a',
+       'cache-control': 'no-cache',
+       'Content-Type': 'application/json' },
+    body:
+     { workflow:
+        { agreementId: '111',
+          owner: '',
+          stages:
+           [ { index: 0,
+               input:
+                [ { id: 'did:op:87bdaabb33354d2eb014af5091c604fb4b0f67dc6cca4d18a96547bffdc27bcf',
+                    url:
+                     [ 'https://data.ok.gov/sites/default/files/unspsc%20codes_3.csv',
+                       'https://gishubdata.nd.gov/sites/default/files/NDHUB.Roads_MileMarkers_1.csv' ],
+                    index: 0 },
+                  { id: 'did:op:1384941e6f0b46299b6e515723df3d8e8e5d1fb175554467a1cb7bc613f5c72e',
+                    url: [ 'https://data.ct.gov/api/views/2fi9-sgi3/rows.csv?accessType=DOWNLOAD' ],
+                    index: 1 } ],
+               compute: { Instances: 1, namespace: 'withgpu', maxtime: 3600 },
+               algorithm:
+                { id: 'did:op:87bdaabb33354d2eb014af5091c604fb4b0f67dc6cca4d18a96547bffdc27bcf',
+                  url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+                  rawcode: 'console.log(\'this is a test\')',
+                  container: { image: 'node', tag: '10', entrypoint: 'node $ALGO' } },
+               output:
+                { nodeUri: 'https://nile.dev-ocean.com',
+                  brizoUrl: 'https://brizo.marketplace.dev-ocean.com',
+                  brizoAddress: '0x4aaab179035dc57b35e2ce066919048686f82972',
+                  metadata: { name: 'Workflow output' },
+                  metadataUrl: 'https://aquarius.marketplace.dev-ocean.com',
+                  secretStoreUrl: 'https://secret-store.nile.dev-ocean.com',
+                  whitelist:
+                   [ '0x00Bd138aBD70e2F00903268F3Db08f2D25677C9e',
+                     '0xACBd138aBD70e2F00903268F3Db08f2D25677C9e' ],
+                  owner: '0x200',
+                  publishoutput: true,
+                  publishalgolog: true } } ] } },
+    json: true };
+
+  request(options, function (error, response, body) {
+    if (error) throw new Error(error);
+    console.log(response.body);
+    let thisMsg = `Your job is started with jobId: *${response.body}*`
+    bot.postMessageToChannel(
+        channelName,
+        thisMsg
+    );
+  });
+
+}
+
+
+
+
+function runComputeNodejs(thisAlgo) {
+    console.log(`/compute nodejs ${thisAlgo}`)
+
+    // Start template
+    console.log(nodejsWorkflowSpec);
+
+    // const thisWorkflow = JSON.parse(JSON.stringify(nodejsWorkflowSpec))
+    let thisWorkflow = Object.assign({}, nodejsWorkflowSpec);
+    // let thisWorkflow = nodejsWorkflowSpec
+
+    thisWorkflow.workflow.stages.forEach(function (thisStage) {
+        //  thisStage.algorithm.rawcode = thisAlgo
+        //  thisStage.algorithm.rawcode = "console.log('this is a test')"
+    })
+
+    console.log(JSON.stringify(thisWorkflow, null, "  "))
+
+    var options = {
+        method: 'POST',
+        url: 'https://operator-api.operator.dev-ocean.com/api/v1/operator/compute',
+        headers:
+        {
+            'cache-control': 'no-cache',
+            Connection: 'keep-alive',
+            'Content-Length': '1336',
+            'Accept-Encoding': 'gzip, deflate',
+            Host: 'operator-api.operator.dev-ocean.com',
+            'Postman-Token': 'ab56ce10-d171-40c1-821f-fe3709bf7c19,f57035ef-ded6-420c-842d-7021a7721ac8',
+            'Cache-Control': 'no-cache',
+            Accept: '*/*',
+            'User-Agent': 'PostmanRuntime/7.20.1',
+            'Content-Type': 'application/json'
+        },
+        body: thisWorkflow,
+        json: true
+    }
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+        console.log(response.body);
+
+        // let thisInfo = JSON.parse(response.body)
+        // let thisInfo = response.body
+        // console.log(thisInfo)
+
+        // let statusMsg = `Started a new job: *${thisInfo}*`
+
+        bot.postMessageToChannel(
+            channelName,
+            'jobID.... coming soon'
+            // body,
+            // `:zap: ${quote} - *${author}*`,
+            // params
+        );
+    });
+}
 
 
 function runNetworkStats() {
@@ -430,12 +615,9 @@ function runStatusID(thisJobId) {
         thisStatusObj = thisInfo[0]
         console.log(thisStatusObj)
 
-
         let statusMsg = `Status for job *${thisStatusObj.jobId}*:
         Status code: ${thisStatusObj.status}
-        Status message: ${thisStatusObj.statusText}
-        `
-
+        Status message: ${thisStatusObj.statusText}`
 
         bot.postMessageToChannel(
             channelName,
